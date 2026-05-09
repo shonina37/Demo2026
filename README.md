@@ -262,7 +262,8 @@ ssh -p 2026 sshuser@192.168.3.2
 
 
 1.8 FRR/OSPF на HQ-RTR и BR-RTR
-nano /etc/apt/sources.listм
+nano /etc/apt/sources.list
+deb [trustd=yes] https://archive.debian.org/debian buster main 
  
 apt-get update
 apt-get install -y frr
