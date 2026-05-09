@@ -1776,9 +1776,26 @@ mkdir -p /root/testapp
 cd /root/testapp
 mcedit docker-compose.yaml
 ```
+<img width="663" height="903" alt="image" src="https://github.com/user-attachments/assets/2faedb96-b2e8-4ad9-9c91-11f552b88c7b" />
 
 В `docker-compose.yaml` вписать:
+services:                  0 пробелов
+  testapp:                 2 пробела
+    image:                 4 пробела
+    depends_on:            4 пробела
+      - db                 6 пробелов
+    environment:           4 пробела
+      DB_TYPE: postgres    6 пробелов
 
+  db:                      2 пробела
+    image:                 4 пробела
+    environment:           4 пробела
+      POSTGRES_DB: testdb  6 пробелов
+    volumes:               4 пробела
+      - db_data:...        6 пробелов
+
+volumes:                   0 пробелов
+  db_data:                 2 пробела
 ```yaml
 version: '3'
 services:
