@@ -1758,7 +1758,7 @@ hosts заполнен
 
 ### 2.5.4 Docker testapp
 
-Additional.iso должен быть подключен к BR-SRV.
+Additional.iso должен быть подключен к BR-SRV. https://disk.yandex.ru/d/0MGlkrp2B9nXDw
 
 На BR-SRV:
 
