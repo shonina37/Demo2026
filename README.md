@@ -750,6 +750,7 @@ ssh -p 2026 sshuser@192.168.3.2
 ## 1.8 FRR/OSPF на HQ-RTR и BR-RTR
 
 На HQ-RTR и BR-RTR:
+<img width="1102" height="45" alt="image" src="https://github.com/user-attachments/assets/9af5ce83-53c5-46f9-9934-2df98776dc0c" />
 
 ```bash
 nano /etc/apt/sources.list
