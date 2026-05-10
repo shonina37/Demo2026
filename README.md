@@ -1785,49 +1785,8 @@ mcedit docker-compose.yaml
 ```
 <img width="663" height="903" alt="image" src="https://github.com/user-attachments/assets/2faedb96-b2e8-4ad9-9c91-11f552b88c7b" />
 
-В `docker-compose.yaml` вписать:
-services:                  0 пробелов
-  testapp:                 2 пробела
-    image:                 4 пробела
-    depends_on:            4 пробела
-      - db                 6 пробелов
-    environment:           4 пробела
-      DB_TYPE: postgres    6 пробелов
 
-  db:                      2 пробела
-    image:                 4 пробела
-    environment:           4 пробела
-      POSTGRES_DB: testdb  6 пробелов
-    volumes:               4 пробела
-      - db_data:...        6 пробелов
 
-volumes:                   0 пробелов
-  db_data:                 2 пробела
-```yaml
-version: '3'
-services:
-  db:
-    image: mariadb_latest
-    container_name: db
-    environment:
-      MYSQL_ROOT_PASSWORD: P@ssw0rd
-      MYSQL_DATABASE: testdb
-      MYSQL_USER: test
-      MYSQL_PASSWORD: P@ssw0rd
-
-  testapp:
-    image: site_latest
-    container_name: testapp
-    depends_on:
-      - db
-    ports:
-      - "8080:8000"
-    environment:
-      DB_HOST: db
-      DB_NAME: testdb
-      DB_USER: test
-      DB_PASSWORD: P@ssw0rd
-```
 
 Запуск:
 
