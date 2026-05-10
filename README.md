@@ -753,6 +753,8 @@ ssh -p 2026 sshuser@192.168.3.2
 
 ```bash
 nano /etc/apt/sources.list
+<img width="1102" height="45" alt="image" src="https://github.com/user-attachments/assets/b0248e79-62f6-4756-a65e-50f185c3e870" />
+
 apt-get update
 apt-get install -y frr
 nano /etc/frr/daemons
