@@ -1,4 +1,3 @@
-Поняла. Тебе нужна **не отдельная памятка**, а **полная методичка в твоём стиле**, где после каждого пункта сразу вставлена проверка: “после этого проверяем вот так”. Без длинных объяснений, без “что может сломаться”, без лекции от занудного линукс-призрака. Держи нормальный полный текст для README.
 
 ````markdown
 # МОДУЛЬ 1 + МОДУЛЬ 2: БЫСТРАЯ МЕТОДИЧКА С ПРОВЕРКАМИ
@@ -1196,7 +1195,7 @@ systemctl enable chrony || systemctl enable chronyd
 chronyc sources
 ```
 
-### DNAT на HQ-SRV
+### DNAT для HQ
 
 ```bash
 iptables -t nat -A PREROUTING -d 172.16.1.2 -p tcp --dport 8080 -j DNAT --to-destination 192.168.1.2:80
@@ -1258,7 +1257,7 @@ systemctl enable chrony || systemctl enable chronyd
 chronyc sources
 ```
 
-### DNAT на BR-SRV
+### DNAT для BR
 
 ```bash
 iptables -t nat -A PREROUTING -d 172.16.2.2 -p tcp --dport 8080 -j DNAT --to-destination 192.168.3.2:8080
@@ -2217,5 +2216,739 @@ docker.au-team.irpo открывается
 
 ```
 
-Вот это уже именно **методичка с проверками внутри**, а не “отдельный справочник по всем возможным бедам человечества”.
+
+````md
+# МОДУЛЬ 3. Быстрые задания для доп. баллов
+
+В этом разделе собраны самые быстрые и выгодные задания из 3 модуля.  
+Их проще выполнить, легче проверить и меньше шансов случайно сломать уже работающую сеть.
+
+Выбранные задания:
+
+| Задание | Что делаем | Почему выгодно |
+|---|---|---|
+| 9 | Fail2ban для SSH | Быстро, мало команд, легко проверить |
+| 5 | CUPS PDF-принтер | Быстро ставится, видно результат |
+| 6 | Rsyslog + logrotate | Хорошо проверяется командами |
+| 8 | Ansible-инвентаризация | Выгодно, если Ansible уже отвечает pong |
+| 7 | Netdata базово | Можно быстро показать мониторинг HQ-SRV |
+
+Не выбирались как быстрые:
+
+| Задание | Почему лучше не делать в первую очередь |
+|---|---|
+| 2 ГОСТ/HTTPS | Много зависимостей, часто ломается nginx/браузер |
+| 3 IPSec | Можно сломать GRE/OSPF |
+| 4 Firewall | Можно случайно заблокировать сеть |
+| 10 Кибер Бэкап | Долго, много GUI, ядро, агенты, лицензия |
+| 1 Импорт 300 пользователей | Быстро только если точно понятен формат CSV |
+
+---
+
+# Задание 9. Fail2ban для защиты SSH на HQ-SRV
+
+## Что нужно сделать
+
+На **HQ-SRV** настроить защиту SSH:
+
+- SSH работает на порту `2026`;
+- после 3 неудачных попыток входа IP попадает в бан;
+- бан длится 1 минуту.
+
+---
+
+## 9.1 Установка fail2ban
+
+На **HQ-SRV**:
+
+```bash
+apt-get update
+apt-get install -y fail2ban
+systemctl enable --now fail2ban
+````
+
+Проверить службу:
+
+```bash
+systemctl status fail2ban
+```
+
+---
+
+## 9.2 Настройка правила для SSH
+
+Создать файл:
+
+```bash
+mcedit /etc/fail2ban/jail.d/sshd.local
+```
+
+Вписать:
+
+```ini
+[sshd]
+enabled = true
+port = 2026
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 3
+findtime = 60
+bantime = 60
+```
+
+Если на ALT Linux нет файла `/var/log/auth.log`, проверить логи так:
+
+```bash
+ls /var/log
+```
+
+Если используется `/var/log/secure`, тогда в конфиге заменить строку:
+
+```ini
+logpath = /var/log/auth.log
+```
+
+на:
+
+```ini
+logpath = /var/log/secure
+```
+
+---
+
+## 9.3 Перезапуск и проверка
+
+```bash
+systemctl restart fail2ban
+fail2ban-client status
+fail2ban-client status sshd
+```
+
+Должно быть видно jail:
+
+```text
+Jail list: sshd
+```
+
+Проверка SSH на HQ-SRV:
+
+```bash
+ss -tulpn | grep 2026
+systemctl status sshd
+```
+
+---
+
+# Задание 5. CUPS PDF-принтер на HQ-SRV
+
+## Что нужно сделать
+
+На **HQ-SRV** поднять принт-сервер CUPS и виртуальный PDF-принтер.
+На **HQ-CLI** подключить этот принтер как принтер по умолчанию.
+
+---
+
+## 5.1 Установка CUPS на HQ-SRV
+
+На **HQ-SRV**:
+
+```bash
+apt-get update
+apt-get install -y cups cups-pdf
+systemctl enable --now cups
+```
+
+Разрешить общий доступ к принтеру:
+
+```bash
+cupsctl --share-printers --remote-any
+systemctl restart cups
+```
+
+Проверка:
+
+```bash
+systemctl status cups
+lpstat -p
+```
+
+Если команда `lpstat` показывает принтер, значит CUPS установлен и PDF-принтер есть.
+
+---
+
+## 5.2 Проверка порта CUPS
+
+На **HQ-SRV**:
+
+```bash
+ss -tulpn | grep 631
+```
+
+Должен слушаться порт:
+
+```text
+631
+```
+
+---
+
+## 5.3 Подключение на HQ-CLI
+
+На **HQ-CLI** открыть графические настройки принтеров.
+
+Примерный путь:
+
+```text
+Меню → Настройки → Принтеры → Добавить принтер → Сетевой принтер
+```
+
+Адрес принтера:
+
+```text
+ipp://192.168.1.2/printers/PDF
+```
+
+Если просит авторизацию на HQ-SRV — нажать “Отмена”.
+
+После добавления сделать PDF-принтер принтером по умолчанию.
+
+---
+
+## 5.4 Проверка печати
+
+На **HQ-CLI** отправить тестовую страницу.
+
+На **HQ-SRV** найти созданный PDF:
+
+```bash
+find / -iname "*.pdf" 2>/dev/null | head
+```
+
+---
+
+# Задание 6. Rsyslog и ротация логов
+
+## Что нужно сделать
+
+Настроить централизованный сбор логов.
+
+Сервер логов:
+
+```text
+HQ-SRV
+```
+
+Клиенты:
+
+```text
+HQ-RTR
+BR-RTR
+BR-SRV
+```
+
+Требования:
+
+* HQ-SRV не должен отправлять логи сам себе;
+* принимать сообщения уровня `warning` и выше;
+* хранить логи в `/opt`;
+* для каждого устройства отдельная папка;
+* настроить ротацию раз в неделю;
+* сжимать старые логи;
+* минимальный размер для ротации — 10 МБ.
+
+---
+
+## 6.1 Настройка сервера логов HQ-SRV
+
+На **HQ-SRV**:
+
+```bash
+apt-get update
+apt-get install -y rsyslog logrotate
+systemctl enable --now rsyslog
+```
+
+Создать каталоги:
+
+```bash
+mkdir -p /opt/HQ-RTR /opt/BR-RTR /opt/BR-SRV
+chmod -R 777 /opt
+```
+
+Создать конфиг приёма логов:
+
+```bash
+mcedit /etc/rsyslog.d/remote.conf
+```
+
+Вписать:
+
+```conf
+module(load="imudp")
+input(type="imudp" port="514")
+
+module(load="imtcp")
+input(type="imtcp" port="514")
+
+$template RemoteLogs,"/opt/%HOSTNAME%/syslog.log"
+*.warning ?RemoteLogs
+& stop
+```
+
+Перезапустить:
+
+```bash
+systemctl restart rsyslog
+```
+
+Проверка:
+
+```bash
+systemctl status rsyslog
+ss -tulpn | grep 514
+```
+
+---
+
+## 6.2 Настройка клиента HQ-RTR
+
+На **HQ-RTR**:
+
+```bash
+nano /etc/rsyslog.conf
+```
+
+В конец добавить:
+
+```conf
+*.warning @@192.168.1.2:514
+```
+
+Перезапустить:
+
+```bash
+systemctl restart rsyslog
+```
+
+Проверить отправку:
+
+```bash
+logger -p user.warning "Test log from HQ-RTR"
+```
+
+---
+
+## 6.3 Настройка клиента BR-RTR
+
+На **BR-RTR**:
+
+```bash
+nano /etc/rsyslog.conf
+```
+
+В конец добавить:
+
+```conf
+*.warning @@192.168.1.2:514
+```
+
+Перезапустить:
+
+```bash
+systemctl restart rsyslog
+```
+
+Проверить отправку:
+
+```bash
+logger -p user.warning "Test log from BR-RTR"
+```
+
+---
+
+## 6.4 Настройка клиента BR-SRV
+
+На **BR-SRV**:
+
+```bash
+apt-get update
+apt-get install -y rsyslog
+systemctl enable --now rsyslog
+```
+
+Открыть конфиг:
+
+```bash
+mcedit /etc/rsyslog.conf
+```
+
+В конец добавить:
+
+```conf
+*.warning @@192.168.1.2:514
+```
+
+Перезапустить:
+
+```bash
+systemctl restart rsyslog
+```
+
+Проверить отправку:
+
+```bash
+logger -p user.warning "Test log from BR-SRV"
+```
+
+---
+
+## 6.5 Проверка логов на HQ-SRV
+
+На **HQ-SRV**:
+
+```bash
+find /opt -type f
+```
+
+Проверить содержимое:
+
+```bash
+tail -n 20 /opt/HQ-RTR/syslog.log
+tail -n 20 /opt/BR-RTR/syslog.log
+tail -n 20 /opt/BR-SRV/syslog.log
+```
+
+Если файлы появились — сбор логов работает.
+
+---
+
+## 6.6 Настройка ротации логов
+
+На **HQ-SRV**:
+
+```bash
+mcedit /etc/logrotate.d/opt-logs
+```
+
+Вписать:
+
+```conf
+/opt/*/*.log {
+    weekly
+    rotate 4
+    compress
+    missingok
+    notifempty
+    minsize 10M
+    create 0644 root root
+}
+```
+
+Проверка:
+
+```bash
+logrotate -d /etc/logrotate.conf
+```
+
+Если критических ошибок нет — ротация настроена.
+
+---
+
+# Задание 8. Инвентаризация HQ-SRV и HQ-CLI через Ansible
+
+## Что нужно сделать
+
+На **BR-SRV** через Ansible собрать информацию о машинах:
+
+```text
+HQ-SRV
+HQ-CLI
+```
+
+Нужно получить:
+
+* имя компьютера;
+* IP-адрес компьютера.
+
+Отчёты должны лежать в:
+
+```text
+/etc/ansible/PC-INFO
+```
+
+Формат отчётов:
+
+```text
+.yml
+```
+
+---
+
+## 8.1 Проверить, что Ansible работает
+
+На **BR-SRV**:
+
+```bash
+ansible all -m ping
+```
+
+Если `HQ-SRV` и `HQ-CLI` отвечают `pong`, можно делать задание.
+
+Если `HQ-SRV` не отвечает, проверить SSH:
+
+```bash
+ssh sshuser@192.168.1.2 -p 2026
+```
+
+В `/etc/ansible/hosts` для HQ-SRV обязательно должен быть порт:
+
+```ini
+hq-srv ansible_host=192.168.1.2 ansible_user=sshuser ansible_password=P@ssw0rd ansible_port=2026
+```
+
+---
+
+## 8.2 Создать папку для отчётов
+
+На **BR-SRV**:
+
+```bash
+mkdir -p /etc/ansible/PC-INFO
+```
+
+---
+
+## 8.3 Создать playbook
+
+На **BR-SRV**:
+
+```bash
+mcedit /etc/ansible/get_hostname_address.yml
+```
+
+Вписать:
+
+```yaml
+- name: Collect PC info
+  hosts: hq-srv,hq-cli
+  gather_facts: yes
+
+  tasks:
+    - name: Save host info
+      copy:
+        dest: "/etc/ansible/PC-INFO/{{ inventory_hostname }}.yml"
+        content: |
+          hostname: {{ ansible_hostname }}
+          fqdn: {{ ansible_fqdn }}
+          ip: {{ ansible_default_ipv4.address | default('no_ip') }}
+```
+
+Важно: отступы только пробелами, не Tab. YAML опять может обидеться, потому что он нежный и бесполезно драматичный.
+
+---
+
+## 8.4 Запустить playbook
+
+На **BR-SRV**:
+
+```bash
+ansible-playbook /etc/ansible/get_hostname_address.yml
+```
+
+Проверить файлы:
+
+```bash
+ls -l /etc/ansible/PC-INFO
+cat /etc/ansible/PC-INFO/hq-srv.yml
+cat /etc/ansible/PC-INFO/hq-cli.yml
+```
+
+Если файлы создались и внутри есть hostname/IP — задание выполнено.
+
+---
+
+# Задание 7. Базовый мониторинг Netdata на HQ-SRV
+
+## Что нужно сделать
+
+Быстрый вариант для доп. баллов:
+
+* установить Netdata на HQ-SRV;
+* сделать доступ по адресу `http://mon.au-team.irpo`;
+* добавить basic-auth через nginx;
+* логин: `admin`;
+* пароль: `P@ssw0rd`.
+
+Полный стриминг BR-SRV можно делать только если есть время. Для быстрых баллов достаточно показать работающий мониторинг HQ-SRV.
+
+---
+
+## 7.1 Установка Netdata на HQ-SRV
+
+На **HQ-SRV**:
+
+```bash
+apt-get update
+apt-get install -y netdata
+systemctl enable --now netdata
+```
+
+Проверка:
+
+```bash
+systemctl status netdata
+ss -tulpn | grep 19999
+curl http://127.0.0.1:19999
+```
+
+---
+
+## 7.2 Добавить DNS-запись mon.au-team.irpo
+
+На **HQ-SRV** открыть dnsmasq:
+
+```bash
+mcedit /etc/dnsmasq.conf
+```
+
+Добавить в конец:
+
+```conf
+address=/mon.au-team.irpo/192.168.1.2
+```
+
+Проверить и перезапустить:
+
+```bash
+dnsmasq --test
+systemctl restart dnsmasq
+```
+
+Проверить с **HQ-CLI**:
+
+```bash
+nslookup mon.au-team.irpo 192.168.1.2
+```
+
+---
+
+## 7.3 Настроить nginx для mon.au-team.irpo
+
+На **HQ-SRV**:
+
+```bash
+apt-get install -y nginx apache2-utils
+htpasswd -cb /etc/nginx/.netdata-pass admin P@ssw0rd
+```
+
+Открыть конфиг nginx:
+
+```bash
+mcedit /etc/nginx/sites-available/default
+```
+
+Добавить server-блок:
+
+```nginx
+server {
+    listen 80;
+    server_name mon.au-team.irpo;
+
+    auth_basic "Monitoring";
+    auth_basic_user_file /etc/nginx/.netdata-pass;
+
+    location / {
+        proxy_pass http://127.0.0.1:19999;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+Проверить и запустить:
+
+```bash
+nginx -t
+systemctl enable nginx --now
+systemctl restart nginx
+```
+
+---
+
+## 7.4 Проверка мониторинга
+
+На **HQ-CLI**:
+
+```bash
+curl -u admin:P@ssw0rd http://mon.au-team.irpo
+```
+
+В браузере открыть:
+
+```text
+http://mon.au-team.irpo
+```
+
+Логин и пароль:
+
+```text
+admin
+P@ssw0rd
+```
+
+Если открылась страница Netdata с CPU/RAM/DISK — базовый мониторинг работает.
+
+---
+
+# Финальная проверка быстрых заданий
+
+| Задание           | Где проверять | Команда                                             |
+| ----------------- | ------------- | --------------------------------------------------- |
+| Fail2ban          | HQ-SRV        | `fail2ban-client status sshd`                       |
+| CUPS              | HQ-SRV        | `systemctl status cups`, `lpstat -p`                |
+| Rsyslog           | HQ-SRV        | `find /opt -type f`, `tail -n 20 /opt/*/syslog.log` |
+| Logrotate         | HQ-SRV        | `logrotate -d /etc/logrotate.conf`                  |
+| Ansible inventory | BR-SRV        | `ls -l /etc/ansible/PC-INFO`                        |
+| Netdata           | HQ-CLI        | `curl -u admin:P@ssw0rd http://mon.au-team.irpo`    |
+
+---
+
+# Если сломалось
+
+| Ошибка                                 | Почему                                         | Что сделать                                                                           |                                            |
+| -------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `fail2ban-client status sshd` ругается | Неверный jail или logpath                      | Проверить `/etc/fail2ban/jail.d/sshd.local`; заменить `auth.log` на `/var/log/secure` |                                            |
+| CUPS не виден с HQ-CLI                 | Не открыт удалённый доступ                     | На HQ-SRV выполнить `cupsctl --share-printers --remote-any`                           |                                            |
+| `exportfs` тут не нужен                | Это NFS, не CUPS                               | Не путать, CUPS проверяется через `lpstat -p`                                         |                                            |
+| Логи не приходят в `/opt`              | Клиент не отправляет или сервер не слушает 514 | Проверить `ss -tulpn                                                                  | grep 514`, `logger -p user.warning "test"` |
+| В `/opt/%HOSTNAME%` странное имя       | hostname клиента отличается                    | Проверить `hostname` на клиенте                                                       |                                            |
+| Ansible не создаёт отчёты              | Нет `pong` от хоста                            | Сначала выполнить `ansible all -m ping`                                               |                                            |
+| Playbook ругается на YAML              | Неверные отступы                               | Только пробелы, не Tab                                                                |                                            |
+| Netdata не открывается                 | Не работает nginx или DNS                      | Проверить `nslookup mon.au-team.irpo`, `nginx -t`, `curl 127.0.0.1:19999`             |                                            |
+| `mon.au-team.irpo` не резолвится       | Нет записи в dnsmasq                           | Добавить `address=/mon.au-team.irpo/192.168.1.2` и restart dnsmasq                    |                                            |
+
+---
+
+# Что лучше показать преподавателю
+
+Для быстрых доп. баллов удобно показать такие проверки:
+
+```bash
+# HQ-SRV
+fail2ban-client status sshd
+systemctl status cups
+lpstat -p
+find /opt -type f
+logrotate -d /etc/logrotate.conf
+
+# BR-SRV
+ansible-playbook /etc/ansible/get_hostname_address.yml
+ls -l /etc/ansible/PC-INFO
+
+# HQ-CLI
+curl -u admin:P@ssw0rd http://mon.au-team.irpo
+```
+
+
+```
 ```
